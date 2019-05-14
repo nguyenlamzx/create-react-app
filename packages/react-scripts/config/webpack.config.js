@@ -308,6 +308,21 @@ module.exports = function(webpackEnv) {
         // Disable require.ensure as it's not a standard language feature.
         { parser: { requireEnsure: false } },
 
+        // {
+        //   test: paths.appHtml,
+        //   use: [
+        //     {
+        //       loader: require.resolve('raw-loader'),
+        //     },
+        //     {
+        //       loader: require.resolve('prerender-loader'),
+        //       options: {
+        //         string: true,
+        //       }
+        //     },
+        //   ]
+        // },
+
         // First, run the linter.
         // It's important to do this before Babel processes the JS.
         {
@@ -350,7 +365,7 @@ module.exports = function(webpackEnv) {
             // Process application JS with Babel.
             // The preset includes JSX, Flow, TypeScript, and some ESnext features.
             {
-              test: /\.(js|mjs|jsx|ts|tsx)$/,
+              test: /\.(js|mjs|ts)$/,
               include: paths.appSrc,
               loader: require.resolve('babel-loader'),
               options: {
@@ -397,6 +412,68 @@ module.exports = function(webpackEnv) {
                 cacheCompression: isEnvProduction,
                 compact: isEnvProduction,
               },
+            },
+            {
+              test: /\.(jsx|tsx|html)$/,
+              use: [
+                {
+                  loader: require.resolve('raw-loader'),
+                },
+                {
+                  loader: require.resolve('prerender-loader'),
+                  options: {
+                    string: true,
+                  }
+                },
+                {
+                  loader: require.resolve('babel-loader'),
+                  include: paths.appSrc,
+                  options: {
+                    customize: require.resolve(
+                      'babel-preset-react-app/webpack-overrides'
+                    ),
+                    // @remove-on-eject-begin
+                    babelrc: false,
+                    configFile: false,
+                    presets: [require.resolve('babel-preset-react-app')],
+                    // Make sure we have a unique cache identifier, erring on the
+                    // side of caution.
+                    // We remove this when the user ejects because the default
+                    // is sane and uses Babel options. Instead of options, we use
+                    // the react-scripts and babel-preset-react-app versions.
+                    cacheIdentifier: getCacheIdentifier(
+                      isEnvProduction
+                        ? 'production'
+                        : isEnvDevelopment && 'development',
+                      [
+                        'babel-plugin-named-asset-import',
+                        'babel-preset-react-app',
+                        'react-dev-utils',
+                        'react-scripts',
+                      ]
+                    ),
+                    // @remove-on-eject-end
+                    plugins: [
+                      [
+                        require.resolve('babel-plugin-named-asset-import'),
+                        {
+                          loaderMap: {
+                            svg: {
+                              ReactComponent: '@svgr/webpack?-svgo,+ref![path]',
+                            },
+                          },
+                        },
+                      ],
+                    ],
+                    // This is a feature of `babel-loader` for webpack (not Babel itself).
+                    // It enables caching results in ./node_modules/.cache/babel-loader/
+                    // directory for faster rebuilds.
+                    cacheDirectory: true,
+                    cacheCompression: isEnvProduction,
+                    compact: isEnvProduction,
+                  },
+                }
+              ]
             },
             // Process any JS outside of the app with Babel.
             // Unlike the application JS, we only compile the standard ES features.
@@ -529,7 +606,8 @@ module.exports = function(webpackEnv) {
           {},
           {
             inject: true,
-            template: paths.appHtml,
+            // template: paths.appHtml,
+            template: '!!prerender-loader?string!' + paths.appHtml,
           },
           isEnvProduction
             ? {
